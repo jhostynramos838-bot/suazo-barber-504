@@ -1,0 +1,26 @@
+{
+  "brandName": "Suazo Barber 504",
+  "pageTitle": "Suazo Barber 504 — Barber Studio, Barcelona",
+  "metaDescription": "Suazo Barber 504: barbería en Carrer de Còrsega, Barcelona. Descubre nuestros cortes, barba y afeitado. Reserva tu cita en Booksy.",
+  "tagline": "Corte · Barba · Estilo",
+  "services": [
+    {
+      "name": "Corte clásico",
+      "description": "Corte limpio y atemporal, adaptado a tu estilo. Sin degradado.",
+      "duration": "30 min",
+      "price": "15"
+    },
+    {
+      "name": "Corte + lavado",
+      "description": "Corte adaptado a tu estilo y lavado opcional para un acabado fresco.",
+      "duration": "40 min",
+      "price": "18"
+    },
+    {
+      "name": "Corte y barba",
+      "description": "Corte personalizado, arreglo y perfilado de barba. El look completo.",
+      "duration": "1 hora",
+      "price": "27"
+    }
+  ]
+}

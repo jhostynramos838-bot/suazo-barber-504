@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Panel privado — Suazo Barber 504</title>
+  <style>
+    :root { color-scheme: dark; font-family: "DM Sans", Arial, sans-serif; background: #0b0b0b; color: #f3f3f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; padding: 38px 18px; }
+    main { width: min(760px, 100%); margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 30px; border-bottom: 1px solid #343434; padding-bottom: 20px; }
+    h1 { margin: 0; font-size: clamp(24px, 5vw, 36px); }
+    h2 { margin: 0 0 20px; font-size: 19px; }
+    p { color: #aaa9a5; font-size: 14px; line-height: 1.65; }
+    .card { padding: clamp(20px, 5vw, 32px); border: 1px solid #343434; background: #111; }
+    form, .fields { display: grid; gap: 16px; }
+    label { display: grid; gap: 7px; color: #c9c8c3; font-size: 13px; font-weight: 600; }
+    input, textarea { width: 100%; padding: 12px; border: 1px solid #454545; border-radius: 0; background: #090909; color: #fff; font: inherit; }
+    textarea { min-height: 84px; resize: vertical; }
+    input:focus, textarea:focus { outline: 2px solid #087df2; outline-offset: 1px; }
+    button { min-height: 44px; padding: 0 16px; border: 0; background: #087df2; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+    button.secondary { border: 1px solid #454545; background: transparent; }
+    button.remove { min-height: 38px; border: 1px solid #654343; background: transparent; color: #f2b1b1; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .service { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin: 14px 0; padding: 18px; border: 1px solid #343434; }
+    .service label:nth-child(2) { grid-column: 1 / -1; }
+    .service .remove { grid-column: 1 / -1; justify-self: start; }
+    .status { min-height: 24px; margin: 14px 0 0; color: #b7d9ff; font-size: 13px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 520px) { .service { grid-template-columns: 1fr; } .service label:nth-child(2), .service .remove { grid-column: auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Suazo Barber 504 · Panel</h1>
+      <button id="logout" class="secondary" type="button" hidden>Cerrar sesión</button>
+    </header>
+    <section id="login-panel" class="card">
+      <h2>Acceso del dueño</h2>
+      <p>Inicia sesión para editar el contenido público de la web.</p>
+      <form id="login-form">
+        <label>Correo del dueño<input name="email" type="email" autocomplete="username" required maxlength="254"></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Entrar al panel</button>
+      </form>
+      <p id="login-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="setup-panel" class="card" hidden>
+      <h2>Crear acceso del dueño</h2>
+      <p>Es la primera configuración. Solo se puede hacer desde este ordenador y se crea una única cuenta de propietario.</p>
+      <form id="setup-form">
+        <label>Tu correo<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+        <label>Crea una contraseña (14 caracteres o más)<input name="password" type="password" autocomplete="new-password" required minlength="14" maxlength="128"></label>
+        <button type="submit">Crear acceso y abrir el panel</button>
+      </form>
+      <p id="setup-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="editor-panel" class="card" hidden>
+      <h2>Editar la página</h2>
+      <p>Los cambios se guardan en el servidor y aparecen en la página pública al recargarla.</p>
+      <form id="content-form" class="fields">
+        <label>Nombre del negocio<input name="brandName" required maxlength="40"></label>
+        <label>Título del navegador<input name="pageTitle" required maxlength="80"></label>
+        <label>Descripción para buscadores<textarea name="metaDescription" required maxlength="250"></textarea></label>
+        <label>Texto breve de portada<input name="tagline" required maxlength="100"></label>
+        <div>
+          <h2>Servicios</h2>
+          <div id="services"></div>
+          <button id="add-service" class="secondary" type="button">Añadir servicio</button>
+        </div>
+        <div>
+          <button id="save" type="submit">Guardar cambios</button>
+          <p id="save-status" class="status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script>
+    const loginPanel = document.querySelector("#login-panel");
+    const setupPanel = document.querySelector("#setup-panel");
+    const editorPanel = document.querySelector("#editor-panel");
+    const loginStatus = document.querySelector("#login-status");
+    const setupStatus = document.querySelector("#setup-status");
+    const saveStatus = document.querySelector("#save-status");
+    const contentForm = document.querySelector("#content-form");
+    const servicesContainer = document.querySelector("#services");
+    let csrfToken = "";
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, { credentials: "same-origin", ...options });
+      const result = await response.json();
+      if (!response.ok) {
+        const error = new Error(result.error || "No se pudo completar la solicitud.");
+        error.status = response.status;
+        error.setupRequired = result.setupRequired === true;
+        throw error;
+      }
+      return result;
+    }
+
+    function serviceField(labelText, name, value, options = {}) {
+      const label = document.createElement("label");
+      label.textContent = labelText;
+      const input = options.multiline ? document.createElement("textarea") : document.createElement("input");
+      input.name = name;
+      input.value = value;
+      input.required = true;
+      input.maxLength = options.maxLength;
+      if (options.inputMode) input.inputMode = options.inputMode;
+      label.append(input);
+      return label;
+    }
+
+    function addService(service = { name: "", description: "", duration: "", price: "" }) {
+      const card = document.createElement("fieldset");
+      card.className = "service";
+      card.append(
+        serviceField("Nombre", "name", service.name, { maxLength: 50 }),
+        serviceField("Descripción", "description", service.description, { maxLength: 220, multiline: true }),
+        serviceField("Duración", "duration", service.duration, { maxLength: 30 }),
+        serviceField("Precio (€)", "price", service.price, { maxLength: 8, inputMode: "decimal" })
+      );
+      const remove = document.createElement("button");
+      remove.className = "remove";
+      remove.type = "button";
+      remove.textContent = "Eliminar servicio";
+      remove.addEventListener("click", () => card.remove());
+      card.append(remove);
+      servicesContainer.append(card);
+    }
+
+    function renderContent(content) {
+      for (const name of ["brandName", "pageTitle", "metaDescription", "tagline"]) {
+        contentForm.elements[name].value = content[name];
+      }
+      servicesContainer.replaceChildren();
+      content.services.forEach(addService);
+    }
+
+    function showEditor() {
+      loginPanel.hidden = true;
+      setupPanel.hidden = true;
+      editorPanel.hidden = false;
+      document.querySelector("#logout").hidden = false;
+    }
+
+    async function loadEditor() {
+      const session = await request("/api/session");
+      csrfToken = session.csrf;
+      renderContent(await request("/api/content"));
+      showEditor();
+    }
+
+    document.querySelector("#login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      loginStatus.textContent = "Comprobando acceso…";
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        const formData = new FormData(form);
+        await request("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.get("email"), password: formData.get("password") })
+        });
+        form.reset();
+        await loadEditor();
+      } catch (error) {
+        loginStatus.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.querySelector("#setup-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      setupStatus.textContent = "Creando el acceso seguro…";
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        const formData = new FormData(form);
+        await request("/api/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.get("email"), password: formData.get("password") })
+        });
+        form.reset();
+        await loadEditor();
+      } catch (error) {
+        setupStatus.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.querySelector("#add-service").addEventListener("click", () => addService());
+
+    contentForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      saveStatus.textContent = "Guardando…";
+      const saveButton = document.querySelector("#save");
+      saveButton.disabled = true;
+      const content = Object.fromEntries(new FormData(contentForm).entries());
+      content.services = [...servicesContainer.querySelectorAll(".service")].map((card) =>
+        Object.fromEntries([...card.querySelectorAll("input, textarea")].map((input) => [input.name, input.value]))
+      );
+      try {
+        await request("/api/content", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+          body: JSON.stringify(content)
+        });
+        saveStatus.textContent = "Cambios guardados. Recarga la página pública para verlos.";
+      } catch (error) {
+        saveStatus.textContent = error.message;
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    document.querySelector("#logout").addEventListener("click", async () => {
+      try {
+        await request("/api/logout", { method: "POST", headers: { "X-CSRF-Token": csrfToken } });
+        window.location.reload();
+      } catch (error) {
+        saveStatus.textContent = error.message;
+      }
+    });
+
+    loadEditor().catch((error) => {
+      if (error.setupRequired) {
+        loginPanel.hidden = true;
+        setupPanel.hidden = false;
+      } else if (error.status !== 401) {
+        loginStatus.textContent = error.message;
+      }
+    });
+  </script>
+</body>
+</html>
